@@ -48,6 +48,7 @@
 #include "drivers/compass/compass_mmc560x.h"
 #include "drivers/compass/compass_mpu925x_ak8963.h"
 #include "drivers/compass/compass_qmc5883.h"
+#include "drivers/compass/compass_qmc5883p.h"
 #include "drivers/compass/compass_ist8310.h"
 
 #include "drivers/io.h"
@@ -310,6 +311,19 @@ static bool compassDetect(magDev_t *magDev, uint8_t *alignment)
 
         if (qmc5883Detect(magDev)) {
             magHardware = MAG_QMC5883;
+            break;
+        }
+#endif
+        FALLTHROUGH;
+
+    case MAG_QMC5883P:
+#ifdef USE_MAG_QMC5883P
+        if (dev->bus->busType == BUS_TYPE_I2C) {
+            dev->busType_u.i2c.address = compassConfig()->mag_i2c_address;
+        }
+
+        if (qmc5883pDetect(magDev)) {
+            magHardware = MAG_QMC5883P;
             break;
         }
 #endif
