@@ -123,22 +123,6 @@ typedef enum {
 #define QMC5883P_LSB_PER_GAUSS_12G      2500.0f
 #define QMC5883P_LSB_PER_GAUSS_30G      1000.0f
 
-static float qmc5883pGetLsbPerGauss(qmc5883p_range_t range)
-{
-    switch (range) {
-    case QMC5883P_RANGE_2G:
-        return QMC5883P_LSB_PER_GAUSS_2G;
-    case QMC5883P_RANGE_8G:
-        return QMC5883P_LSB_PER_GAUSS_8G;
-    case QMC5883P_RANGE_12G:
-        return QMC5883P_LSB_PER_GAUSS_12G;
-    case QMC5883P_RANGE_30G:
-        return QMC5883P_LSB_PER_GAUSS_30G;
-    default:
-        return QMC5883P_LSB_PER_GAUSS_8G;
-    }
-}
-
 static bool qmc5883pInit(magDev_t *magDev)
 {
     extDevice_t *dev = &magDev->dev;
@@ -216,7 +200,7 @@ static bool qmc5883pRead(magDev_t *magDev, int16_t *magData)
     return true;
 }
 
-static bool qmc5883pDetect(magDev_t *magDev)
+bool qmc5883pDetect(magDev_t *magDev)
 {
     extDevice_t *dev = &magDev->dev;
 
