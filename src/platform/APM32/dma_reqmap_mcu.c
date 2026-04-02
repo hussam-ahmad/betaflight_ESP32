@@ -28,6 +28,7 @@
 #include "timer_def.h"
 #include "drivers/bus_spi.h"
 #include "drivers/dma_reqmap.h"
+#include "platform/dma.h"
 #include "drivers/serial.h"
 #include "drivers/serial_uart.h"
 #include "drivers/serial_uart_impl.h"
@@ -41,7 +42,7 @@ typedef struct dmaPeripheralMapping_s {
 } dmaPeripheralMapping_t;
 
 typedef struct dmaTimerMapping_s {
-    TIM_TypeDef *tim;
+    void *tim;
     uint8_t channel;
     dmaChannelSpec_t channelSpec[MAX_TIMER_DMA_OPTIONS];
 } dmaTimerMapping_t;
@@ -165,7 +166,7 @@ dmaoptValue_t dmaoptByTag(ioTag_t ioTag)
     return DMA_OPT_UNUSED;
 }
 
-const dmaChannelSpec_t *dmaGetChannelSpecByTimerValue(TIM_TypeDef *tim, uint8_t channel, dmaoptValue_t dmaopt)
+const dmaChannelSpec_t *dmaGetChannelSpecByTimerValue(void *tim, uint8_t channel, dmaoptValue_t dmaopt)
 {
     if (dmaopt < 0 || dmaopt >= MAX_TIMER_DMA_OPTIONS) {
         return NULL;

@@ -32,10 +32,12 @@
 
 #include "drivers/dma.h"
 #include "drivers/dma_reqmap.h"
+#include "platform/dma.h"
 #include "drivers/dshot.h"
 #include "dshot_dpwm.h"
 #include "drivers/dshot_command.h"
 #include "drivers/io.h"
+#include "platform/io_impl.h"
 #include "drivers/nvic.h"
 #include "drivers/motor.h"
 #include "drivers/pwm_output.h"
@@ -43,6 +45,7 @@
 #include "platform/rcc.h"
 #include "drivers/time.h"
 #include "drivers/timer.h"
+#include "platform/timer.h"
 #include "drivers/system.h"
 
 #ifdef USE_DSHOT_TELEMETRY
@@ -149,14 +152,18 @@ FAST_CODE void pwmCompleteDshotMotorUpdate(void)
             xLL_EX_DMA_EnableResource(dmaMotorTimers[i].dmaBurstRef);
 
             /* configure the DMA Burst Mode */
+#if defined(STM32N6)
+            LL_TIM_ConfigDMABurst(dmaMotorTimers[i].timer, LL_TIM_DMABURST_BASEADDR_CCR1, LL_TIM_DMABURST_LENGTH_4TRANSFERS, LL_TIM_DMA_UPDATE);
+#else
             LL_TIM_ConfigDMABurst(dmaMotorTimers[i].timer, LL_TIM_DMABURST_BASEADDR_CCR1, LL_TIM_DMABURST_LENGTH_4TRANSFERS);
+#endif
             /* Enable the TIM DMA Request */
             LL_TIM_EnableDMAReq_UPDATE(dmaMotorTimers[i].timer);
         } else
 #endif
         {
             LL_TIM_DisableARRPreload(dmaMotorTimers[i].timer);
-            dmaMotorTimers[i].timer->ARR = dmaMotorTimers[i].outputPeriod;
+            ((TIM_TypeDef *)dmaMotorTimers[i].timer)->ARR = dmaMotorTimers[i].outputPeriod;
 
             /* Reset timer counter */
             LL_TIM_SetCounter(dmaMotorTimers[i].timer, 0);
@@ -296,7 +303,7 @@ bool pwmDshotMotorHardwareConfig(const timerHardware_t *timerHardware, uint8_t m
         RCC_ClockCmd(timerRCC(timer), ENABLE);
         LL_TIM_DisableCounter(timer);
 
-        init.Prescaler = (uint16_t)(lrintf((float) timerClock(timer) / getDshotHz(pwmProtocolType) + 0.01f) - 1);
+        init.Prescaler = (uint16_t)(lrintf((float) timerClockFromInstance(timer) / getDshotHz(pwmProtocolType) + 0.01f) - 1);
         init.Autoreload = (pwmProtocolType == MOTOR_PROTOCOL_PROSHOT1000 ? MOTOR_NIBBLE_LENGTH_PROSHOT : MOTOR_BITLENGTH) - 1;
         init.ClockDivision = LL_TIM_CLOCKDIVISION_DIV1;
         init.RepetitionCounter = 0;
@@ -354,6 +361,32 @@ bool pwmDshotMotorHardwareConfig(const timerHardware_t *timerHardware, uint8_t m
     }
 
     LL_DMA_StructInit(&DMAINIT);
+#if defined(STM32N6)
+    // TODO: N6 HPDMA/GPDMA DMA init for DShot not yet implemented
+    // Set minimal fields that exist in N6 LL_DMA_InitTypeDef
+#ifdef USE_DSHOT_DMAR
+    if (useBurstDshot) {
+        motor->timer->dmaBurstBuffer = &dshotBurstDmaBuffer[timerIndex][0];
+        DMAINIT.Request = dmaChannel;
+        DMAINIT.DestAddress = (uint32_t)&((TIM_TypeDef *)timerHardware->tim)->DMAR;
+        DMAINIT.SrcAddress = (uint32_t)motor->timer->dmaBurstBuffer;
+    } else
+#endif
+    {
+        motor->dmaBuffer = &dshotDmaBuffer[motorIndex][0];
+        DMAINIT.Request = dmaChannel;
+        DMAINIT.DestAddress = (uint32_t)timerChCCR(timerHardware);
+        DMAINIT.SrcAddress = (uint32_t)motor->dmaBuffer;
+    }
+    DMAINIT.Direction = LL_DMA_DIRECTION_MEMORY_TO_PERIPH;
+    DMAINIT.BlkDataLength = (pwmProtocolType == MOTOR_PROTOCOL_PROSHOT1000 ? PROSHOT_DMA_BUFFER_SIZE : DSHOT_DMA_BUFFER_SIZE) * 4;
+    DMAINIT.SrcIncMode = LL_DMA_SRC_INCREMENT;
+    DMAINIT.DestIncMode = LL_DMA_DEST_FIXED;
+    DMAINIT.SrcDataWidth = LL_DMA_SRC_DATAWIDTH_WORD;
+    DMAINIT.DestDataWidth = LL_DMA_DEST_DATAWIDTH_WORD;
+    DMAINIT.Priority = LL_DMA_HIGH_PRIORITY;
+    DMAINIT.Mode = LL_DMA_NORMAL;
+#else
 #ifdef USE_DSHOT_DMAR
     if (useBurstDshot) {
         motor->timer->dmaBurstBuffer = &dshotBurstDmaBuffer[timerIndex][0];
@@ -367,7 +400,7 @@ bool pwmDshotMotorHardwareConfig(const timerHardware_t *timerHardware, uint8_t m
 #ifndef STM32G4
         DMAINIT.FIFOThreshold = LL_DMA_FIFOTHRESHOLD_FULL;
 #endif
-        DMAINIT.PeriphOrM2MSrcAddress = (uint32_t)&timerHardware->tim->DMAR;
+        DMAINIT.PeriphOrM2MSrcAddress = (uint32_t)&((TIM_TypeDef *)timerHardware->tim)->DMAR;
     } else
 #endif
     {
@@ -398,6 +431,7 @@ bool pwmDshotMotorHardwareConfig(const timerHardware_t *timerHardware, uint8_t m
     DMAINIT.MemoryOrM2MDstDataSize = LL_DMA_MDATAALIGN_WORD;
     DMAINIT.Mode = LL_DMA_MODE_NORMAL;
     DMAINIT.Priority = LL_DMA_PRIORITY_HIGH;
+#endif // STM32N6
 
     if (!dmaIsConfigured) {
         xLL_EX_DMA_Init(dmaRef, &DMAINIT);

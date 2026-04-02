@@ -2,6 +2,8 @@
 # F7 Make file include
 #
 
+PLATFORM_SDK := arm
+
 ifeq ($(DEBUG_HARDFAULTS),F7)
 CFLAGS               += -DDEBUG_HARDFAULTS
 endif
@@ -180,7 +182,8 @@ MSC_SRC = \
             msc/emfat.c \
             msc/emfat_file.c \
             msc/usbd_storage_sdio.c \
-            msc/usbd_storage_sd_spi.c
+            msc/usbd_storage_sd_spi.c \
+            common/stm32/msc_sdio_storage.c
 
 SPEED_OPTIMISED_SRC += \
             STM32/bus_i2c_hal.c \
